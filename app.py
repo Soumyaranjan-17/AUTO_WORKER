@@ -10,39 +10,35 @@ import pyautogui
 # Controllers
 keyboard = KeyboardController()
 mouse = MouseController()
-
-# Flag for controlling the endless loop
 running = False
 
-def press_down(t, log_callback):
+# --- Logic Functions ---
+def press_down(t, log):
     for i in range(1, t + 1):
-        log_callback(f"   ↳ Pressing DOWN ARROW #{i}")
+        log(f"\u2193 Pressing DOWN ARROW #{i}")
         keyboard.press(Key.down)
         time.sleep(0.05)
         keyboard.release(Key.down)
         time.sleep(0.1)
+
 def smooth_mouse_move_to(x_target, y_target, duration=0.5, steps=30):
-    """Move the mouse smoothly to (x_target, y_target) over 'duration' seconds in 'steps'."""
     current_x, current_y = mouse.position
     dx = (x_target - current_x) / steps
     dy = (y_target - current_y) / steps
     delay = duration / steps
-
     for _ in range(steps):
         current_x += dx
         current_y += dy
         mouse.position = (int(current_x), int(current_y))
         time.sleep(delay)
 
-def random_mouse_action(probability, log_callback):
+def random_mouse_action(probability, log):
     if random.random() < (probability / 100.0):
         action = random.choice(['scroll', 'move'])
-
         if action == 'scroll':
             scroll_amount = random.randint(-3, 3)
-            log_callback(f"   🖱️ Scrolling mouse by {scroll_amount}")
+            log(f"🖱️ Scrolling by {scroll_amount}")
             mouse.scroll(0, scroll_amount)
-
         elif action == 'move':
             screen_width, screen_height = pyautogui.size()
             x_offset = random.randint(-100, 100)
@@ -50,27 +46,26 @@ def random_mouse_action(probability, log_callback):
             current_x, current_y = mouse.position
             new_x = max(0, min(current_x + x_offset, screen_width))
             new_y = max(0, min(current_y + y_offset, screen_height))
-            log_callback(f"   🖱️ Smoothly moving mouse to: ({new_x}, {new_y})")
+            log(f"🖱️ Moving mouse smoothly to ({new_x}, {new_y})")
             smooth_mouse_move_to(new_x, new_y, duration=random.uniform(0.4, 1.0), steps=random.randint(25, 40))
     else:
-        log_callback("   🖱️ Skipping mouse action this time.")
+        log("🖱️ No mouse movement this round.")
 
-def start_simulation(min_interval, max_interval, presses, mouse_prob, log_callback):
+def start_simulation(min_i, max_i, presses, mouse_prob, log):
     global running
     running = True
     count = 1
-    log_callback("✅ Simulation started.\n")
+    log("✅ Automation started\n")
     while running:
-        wait_time = random.randint(min_interval, max_interval)
-        log_callback(f"🕒 Set #{count}: Waiting {wait_time} seconds...")
+        wait_time = random.randint(min_i, max_i)
+        log(f"⏳ Set #{count} waiting {wait_time}s...")
         time.sleep(wait_time)
-
-        log_callback(f"🎯 Set #{count}: Executing actions:")
-        press_down(presses, log_callback)
-        random_mouse_action(mouse_prob, log_callback)
-        log_callback(f"✅ Set #{count} completed.\n")
+        log(f"⚙️ Executing Set #{count}")
+        press_down(presses, log)
+        random_mouse_action(mouse_prob, log)
+        log(f"✅ Completed Set #{count}\n")
         count += 1
-    log_callback("⏹️ Simulation stopped.\n")
+    log("⏹️ Automation stopped.")
 
 def stop_simulation():
     global running
@@ -80,69 +75,65 @@ def run_in_thread(*args):
     thread = Thread(target=start_simulation, args=args, daemon=True)
     thread.start()
 
-# ==== GUI ====
+# --- GUI Setup ---
 def create_gui():
     root = tk.Tk()
-    root.title("⬇️ Down Arrow Key + Mouse Automator")
+    root.title("Down Arrow + Mouse Automator")
+    root.geometry("600x550")
+    root.configure(bg='#f0f2f5')
 
-    root.geometry("500x450")
-    root.resizable(False, False)
+    style = ttk.Style()
+    style.configure("TLabel", font=("Segoe UI", 10))
+    style.configure("TButton", font=("Segoe UI", 10, "bold"), padding=6)
+    style.configure("TEntry", padding=4)
 
-    # Labels + Inputs
-    ttk.Label(root, text="Min Interval (sec):").pack()
-    min_entry = ttk.Entry(root)
-    min_entry.insert(0, "10")
-    min_entry.pack()
+    def labeled_entry(label_text, default_value):
+        frame = ttk.Frame(root)
+        frame.pack(pady=5)
+        label = ttk.Label(frame, text=label_text)
+        label.pack(side='left', padx=5)
+        entry = ttk.Entry(frame, width=10)
+        entry.insert(0, default_value)
+        entry.pack(side='left')
+        return entry
 
-    ttk.Label(root, text="Max Interval (sec):").pack()
-    max_entry = ttk.Entry(root)
-    max_entry.insert(0, "20")
-    max_entry.pack()
+    min_entry = labeled_entry("Minimum Interval (s):", "10")
+    max_entry = labeled_entry("Maximum Interval (s):", "20")
+    press_entry = labeled_entry("Key Presses per Interval:", "3")
+    mouse_prob_entry = labeled_entry("Mouse Movement Probability (%):", "30")
 
-    ttk.Label(root, text="Key Presses per Interval:").pack()
-    presses_entry = ttk.Entry(root)
-    presses_entry.insert(0, "3")
-    presses_entry.pack()
+    log_label = ttk.Label(root, text="Activity Log:", font=("Segoe UI", 10, "bold"))
+    log_label.pack(pady=5)
 
-    ttk.Label(root, text="Mouse Movement Probability (%):").pack()
-    mouse_prob_entry = ttk.Entry(root)
-    mouse_prob_entry.insert(0, "30")
-    mouse_prob_entry.pack()
+    log_box = tk.Text(root, height=15, width=70, state='disabled', bg="#ffffff", fg="#333333", font=("Consolas", 10))
+    log_box.pack(padx=10, pady=5)
 
-    # Log Display
-    log_box = tk.Text(root, height=15, width=60, wrap=tk.WORD, state='disabled', bg="#f4f4f4")
-    log_box.pack(pady=10)
-
-    def log_callback(message):
+    def log(msg):
         log_box.configure(state='normal')
-        log_box.insert(tk.END, message + "\n")
+        log_box.insert(tk.END, msg + '\n')
         log_box.see(tk.END)
         log_box.configure(state='disabled')
 
-    # Buttons
     button_frame = ttk.Frame(root)
-    button_frame.pack(pady=5)
+    button_frame.pack(pady=15)
 
     def on_start():
         try:
             min_val = int(min_entry.get())
             max_val = int(max_entry.get())
-            presses = int(presses_entry.get())
+            presses = int(press_entry.get())
             mouse_prob = float(mouse_prob_entry.get())
-
             if min_val > max_val:
-                log_callback("❌ Min interval cannot be greater than max.")
+                log("❌ Min interval must be <= Max interval.")
                 return
-
-            run_in_thread(min_val, max_val, presses, mouse_prob, log_callback)
+            run_in_thread(min_val, max_val, presses, mouse_prob, log)
         except ValueError:
-            log_callback("❌ Invalid input. Please enter valid numbers.")
+            log("❌ Invalid input. Please enter valid numbers.")
 
     start_btn = ttk.Button(button_frame, text="▶ Start", command=on_start)
-    start_btn.pack(side='left', padx=10)
-
     stop_btn = ttk.Button(button_frame, text="⏹ Stop", command=stop_simulation)
-    stop_btn.pack(side='right', padx=10)
+    start_btn.pack(side='left', padx=15)
+    stop_btn.pack(side='right', padx=15)
 
     root.mainloop()
 
